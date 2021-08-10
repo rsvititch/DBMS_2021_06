@@ -1,0 +1,169 @@
+--создаем роль админа, котороый сможет запускать запросы и создавать бд
+
+CREATE ROLE admin WITH
+  LOGIN
+  NOSUPERUSER
+  INHERIT
+  CREATEDB
+  CREATEROLE
+  NOREPLICATION
+  CONNECTION LIMIT 2
+  ENCRYPTED PASSWORD 'md5b9d11b3be25f5a1a7dc8ca04cd310b28';
+
+-- подключаемся в командную строку
+docker exec -it postgres bash
+
+-- создаем табличное пространство. Поскольку база не сложная, создавать несколько tablespace нет особого смысла
+mkdir /data/
+mkdir /dbs/
+chown postgres:postgres /data/dbs
+
+psql -U user
+CREATE TABLESPACE dbspace LOCATION '/data/dbs';
+
+-- создаем базу данных DB_store
+CREATE DATABASE DB_store OWNER admin TABLESPACE dbspace;
+
+----
+CREATE TABLE Creators (
+  Creator_ID int PRIMARY KEY,
+  Creator_Credentials varchar(45) UNIQUE NOT NULL
+  );
+
+  CREATE TABLE Packages (
+  Package_ID int PRIMARY KEY,
+  Package_begin_date date NOT NULL,
+  Package_exp_date date,
+  CHECK (Package_exp_date >= Package_begin_date)
+  );
+
+  CREATE TABLE Movies_Types (
+  Movie_Type int PRIMARY KEY,
+  Movie_Type_Name varchar(30) UNIQUE NOT NULL
+  );
+
+  CREATE TABLE Movies_Roles (
+  Role_ID int PRIMARY KEY,
+  Role_Name varchar(15) UNIQUE NOT NULL
+  );
+
+CREATE TABLE Clients (
+  Client_ID int PRIMARY KEY,
+  Surname   varchar(400),
+  Client_Name   varchar(400),
+  Sex boolean,
+  Date_of_Birth date CHECK (Date_of_Birth <= CURRENT_DATE),
+  Username varchar(15) NOT NULL,
+  Passwd_hash varchar NOT NULL
+  );
+
+  CREATE TABLE Client_Groups (
+  Client_Group_ID int PRIMARY KEY,
+  Client_Group_Name varchar(45),
+  Client_Group_Discount_Purchase int CHECK (Client_Group_discount_purchase >=0 AND Client_Group_discount_purchase <=100),
+  Client_Group_Discount_Rent int CHECK (Client_Group_Discount_Rent >=0 AND Client_Group_Discount_Rent <=100),
+  Client_Group_Creation_Date date NOT NULL,
+  Client_Group_Expiration_Date date NOT NULL,
+  CHECK (Client_Group_Expiration_Date >= Client_Group_Creation_Date)
+  );
+
+  CREATE TABLE Clients_Client_Groups (
+  Clients_Client_Groups_ID int PRIMARY KEY,
+  Client_ID int REFERENCES Clients,
+  Client_Group_ID int REFERENCES Client_Groups,
+  Entry_Date  timestamp NOT NULL,
+  Leave_Date  timestamp NOT NULL,
+  CHECK (Leave_Date >= Entry_Date)
+  );
+
+  CREATE TABLE Genres (
+  Genre_ID int PRIMARY KEY,
+  Genre_Name varchar(30) UNIQUE NOT NULL
+  );
+
+  CREATE TABLE Movies (
+  Movie_ID int PRIMARY KEY,
+  Name_Eng    varchar(4000),
+  Name_Ru     varchar(4000),
+  Annotation  text,
+  Age_Rating  int,
+  CHECK (Age_Rating >=0 AND Age_Rating <=18),
+  Release_Date date,
+  Release_Exp_Date date NOT NULL,
+  CHECK (Release_Exp_Date >= Release_Date),
+  Movie_Release_Year date,
+  Country text,
+  Rating_IMDB_Date  date,
+  Rating_Kinopoisk  decimal(3,2) CHECK (Rating_Kinopoisk >=0 AND Rating_Kinopoisk <=10),
+  Rating_Kinopoisk_Date date,
+  Rating_IMDB decimal(3,2) CHECK (Rating_IMDB >=0 AND Rating_IMDB <=10),
+  Movie_type int REFERENCES Movies_Types
+  );
+
+  CREATE TABLE Movies_Genres (
+  Movie_Genre_ID int PRIMARY KEY,
+  Movie_ID int REFERENCES Movies,
+  Genre_ID int REFERENCES Genres
+  );
+
+  CREATE TABLE Creators_Movies (
+    Creators_Movies_ID int PRIMARY KEY,
+    Role_ID int REFERENCES Movies_Roles,
+    Creator_ID int REFERENCES Creators,
+    Movie_ID int REFERENCES Movies
+    );
+
+
+	CREATE TABLE Ratings (
+  Rating_ID int PRIMARY KEY,
+  Rating int NOT NULL,
+  CHECK (Rating >=1 AND Rating <=5),
+  Rating_Text text,
+  Movie_ID int REFERENCES Movies,
+  Client_ID int REFERENCES Clients
+  );
+
+  CREATE TABLE Series (
+    Series_ID int PRIMARY KEY,
+    Movie_ID int REFERENCES Movies,
+    Series_Name varchar (100),
+    Annotation varchar(400),
+    Series_Season int NOT NULL CHECK (Series_Season >0),
+    Series_Number int NOT NULL CHECK (Series_Number >0)
+    );
+
+	CREATE TABLE Movies_Packages (
+  Movies_Packages_ID int PRIMARY KEY,
+  Package_ID int REFERENCES Packages,
+  Series_ID int REFERENCES Series
+  );
+
+
+  CREATE TABLE Rent_Prices (
+  Rent_Price_ID int PRIMARY KEY,
+  Package_ID int REFERENCES Packages,
+  Rent_Period int NOT NULL,
+  Rent_Price decimal(9,2) NOT NULL CHECK (Rent_Price >=0),
+  Rent_Price_Start_Date date NOT NULL,
+  Rent_Price_End_Date date NOT NULL,
+  CHECK (Rent_Price_End_Date >= Rent_Price_Start_Date),
+  Series_ID int REFERENCES Series
+  );
+
+
+  CREATE TABLE Contracts (
+    Contract_ID int PRIMARY KEY,
+    Price decimal(9,2) NOT NULL,
+    Date timestamp NOT NULL,
+    Rent_Price_ID int REFERENCES Rent_Prices,
+    Client_ID int REFERENCES Clients
+    );
+
+	CREATE TABLE Movies_Files (
+  Movies_Files_ID int PRIMARY KEY,
+  Series_ID int REFERENCES Series,
+  Resolution_X int CHECK (Resolution_X > 0),
+  Resolution_Y int CHECK (Resolution_Y > 0),
+  CHECK (Resolution_X/Resolution_Y = 4/3 OR Resolution_X/Resolution_Y = 16/9),
+  S3_link text UNIQUE NOT NULL
+  );
